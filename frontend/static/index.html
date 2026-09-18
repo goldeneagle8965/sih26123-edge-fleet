@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SIH26123 — Edge fleet, Hyderabad 3PL floor</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="kicker">SIH26123 · Edge-AI Distributed Fleet Coordination</p>
+      <h1>No dispatcher. Three AMRs, one radio.</h1>
+    </div>
+    <div class="clock">
+      <span id="tick">t=0</span>
+      <span id="policy-label">UBPA</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="floor">
+      <canvas id="grid" width="1000" height="440"></canvas>
+      <p class="hint">Click a cell to block/unblock it. That is a live obstacle, not a scripted clip.</p>
+    </section>
+
+    <aside>
+      <div class="panel">
+        <h2>Operator</h2>
+        <div class="row">
+          <button id="btn-aisle" class="danger">Block aisle</button>
+          <button id="btn-pause">Pause</button>
+          <button id="btn-reset">Reset</button>
+        </div>
+        <div class="row">
+          <button id="btn-ubpa" class="on">Policy: UBPA</button>
+          <button id="btn-sw">Policy: stop-and-wait</button>
+        </div>
+        <div class="radio-knobs">
+          <label>Packet loss <b id="drop-label">0%</b>
+            <input id="drop-slider" type="range" min="0" max="80" step="5" value="0" />
+          </label>
+          <label>Radio delay <b id="delay-label">1 tick</b>
+            <input id="delay-slider" type="range" min="0" max="5" step="1" value="1" />
+          </label>
+          <p class="sub" id="radio-stats">delivered 0 · dropped 0</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Robots (local state)</h2>
+        <div id="robots"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Radio (peer packets)</h2>
+        <p class="sub">Robot A knows Robot B from this feed, not from a scheduler.</p>
+        <div id="radio" class="log"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Live run meters</h2>
+        <p class="sub">This panel is the current simulation, not a slide.</p>
+        <div id="live-metrics" class="metrics"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Measured vs stop-and-wait</h2>
+        <p class="sub">Loaded from <code>results/metrics.json</code>. Baseline vs UBPA raw values; % only if both finished.</p>
+        <div id="measured" class="metrics"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
