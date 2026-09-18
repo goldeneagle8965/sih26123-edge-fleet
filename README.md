@@ -32,6 +32,8 @@ Work down the list in order; each beat builds on the one before it. All of it is
 
 Two panels worth pointing at while this runs: **Live run meters** (this run only) and **Measured vs stop-and-wait** (loaded from `results/metrics.json`, never invented).
 
+This list runs in the same order as the spoken version, so the timings carry over: `docs/demo_script.md` (0:00 → 2:40) and slide 10 of the deck (0:00 / 0:40 / 1:10 / 1:50 / 2:10 / 2:25).
+
 Useful options:
 
 ```bash
@@ -79,3 +81,7 @@ docs/         problem analysis, requirements, architecture, methodology,
 ```
 
 Windows note: if `git` is not on your PATH, it lives at `C:\Program Files\Git\cmd\git.exe`.
+
+## Presentation
+
+`docs/SIH26123_Edge_Fleet_12_slides.pptx` — 12 slides, 16:9, speaker notes on all of them. Rebuild with `python scripts/build_pptx.py`; slide 9's numbers are read from `results/metrics.json`, not typed in by hand.
