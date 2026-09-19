@@ -1,6 +1,7 @@
 """Build the 12-slide SIH26123 deck. Numbers come from results/metrics.json, not invented %."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -11,7 +12,20 @@ from pptx.enum.text import PP_ALIGN
 from pptx.util import Emu, Inches, Pt
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "docs" / "SIH26123_Edge_Fleet_12_slides.pptx"
+OUT = ROOT / "docs" / "SIH26123_EdgeFleet_FULL-12slide-Detail.pptx"
+METRICS = ROOT / "results" / "metrics.json"
+DEGRADATION = ROOT / "results" / "degradation.json"
+
+
+def deg_summary(name):
+    """One degradation scenario summary from results/degradation.json. Never hand-typed."""
+    data = json.loads(DEGRADATION.read_text(encoding="utf-8"))
+    return data["experiments"][name]["summary"]
+
+
+D_LOSS40 = deg_summary("loss40")
+D_DELAY3 = deg_summary("delay3")
+D_LOSS70 = deg_summary("loss70")
 
 BG = RGBColor(0x1B, 0x17, 0x12)
 INK = RGBColor(0xF3, 0xE6, 0xD4)
@@ -288,7 +302,11 @@ def slide_india(prs):
     facts = [
         ("Layout", "25×11 cells. 1-wide rack aisles. Two highways. Depot and charger. Turnout bays so a yield is physically possible."),
         ("Traffic mix", "Mouse click = human / forklift / fallen carton. Robots sense range 2, broadcast the obstacle, replan."),
-        ("Radio reality", "Indoor 5G/Wi-Fi is lossy. Live packet-loss and delay sliders. Stale peers do not crash the fleet."),
+        ("Radio reality", f"Indoor 5G/Wi-Fi is lossy: at 40% packet loss the same "
+                          f"{D_LOSS40['tasks_done_min']}/{D_LOSS40['tasks_total']} still "
+                          f"finish, just later ({D_LOSS40['complete_tick_min']}\u2013"
+                          f"{D_LOSS40['complete_tick_max']} ticks vs 72 clean) with "
+                          f"{int(D_LOSS40['deadlock_count_mean'])} deadlocks. Sliders are live."),
         ("Why here", "Indian 3PLs buy AMRs faster than they buy a second control room. Edge negotiation is the cheap resilience."),
     ]
     for i, (title, body) in enumerate(facts):
@@ -303,6 +321,34 @@ def slide_india(prs):
     )
 
 
+def result_cell(run):
+    """One table cell from a metrics.json run/summary block. Never hand-typed."""
+    if run.get("complete"):
+        return (
+            f"{run['all_tasks_complete_tick']} ticks · "
+            f"{run['tasks_done']}/{run['tasks_total']} · {run['deadlock_count']} deadlocks"
+        )
+    return (
+        f"incomplete · {run['tasks_done']}/{run['tasks_total']} jobs · "
+        f"{run['deadlock_count']} deadlocks"
+    )
+
+
+def result_rows():
+    """Read the measured table straight from results/metrics.json (aggregate over seeds)."""
+    labels = [
+        ("E1", "E1 throughput"),
+        ("E2", "E2 head-on aisle"),
+        ("E3", "E3 aisle blocked t=16"),
+    ]
+    data = json.loads(METRICS.read_text(encoding="utf-8"))
+    rows = []
+    for key, label in labels:
+        summary = data["experiments"][key]["summary"]
+        rows.append([label, result_cell(summary["baseline"]), result_cell(summary["ubpa"])])
+    return rows, int(data["tick_limit"])
+
+
 def slide_results(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     fill_slide(s)
@@ -312,11 +358,7 @@ def slide_results(prs):
     para(tf, "Do not say “X% faster.” There is no finish time to divide. Source: results/metrics.json", size=14, color=MUTED)
 
     headers = ["Experiment", "Stop-and-wait", "UBPA"]
-    rows = [
-        ["E1 throughput", "incomplete · 0/6 jobs · 2 deadlocks", "72 ticks · 6/6 · 0 deadlocks"],
-        ["E2 head-on aisle", "incomplete · 1/3 jobs · 2 deadlocks", "51 ticks · 3/3 · 0 deadlocks"],
-        ["E3 aisle blocked t=16", "incomplete · 3/6 jobs · 3 deadlocks", "85 ticks · 6/6 · 0 deadlocks"],
-    ]
+    rows, tick_limit = result_rows()
     col_w = [Inches(3.3), Inches(4.45), Inches(4.45)]
     x0 = Inches(0.55)
     y0 = Inches(1.7)
@@ -343,13 +385,16 @@ def slide_results(prs):
     para(tf, "How to read this", size=16, bold=True, color=AMBER, first=True, space=6)
     para(
         tf,
-        "Stop-and-wait freezes on mutual occupancy, so distance is low and wait ≈ 1. UBPA travels farther because it finishes the jobs. Tick limit 800. comparable=false, so improvement % is n/a.",
+        "Stop-and-wait freezes on mutual occupancy, so distance is low and wait ≈ 1. UBPA travels farther because it finishes the jobs. "
+        f"Tick limit {tick_limit}. comparable=false, so improvement % is n/a.",
         size=16,
         color=INK,
     )
+    finish_ticks = " / ".join(row[2].split(" ")[0] for row in rows if "ticks" in row[2])
     notes(
         s,
-        "Memorize: 72 / 51 / 85. Baseline deadlocks. Ours finishes. If they push for a percentage, repeat: a percentage against an incomplete baseline is a lie.",
+        f"Memorize: {finish_ticks}. Baseline deadlocks. Ours finishes. "
+        "If they push for a percentage, repeat: a percentage against an incomplete baseline is a lie.",
     )
 
 
@@ -364,7 +409,10 @@ def slide_demo(prs):
         ("0:40", "Auction: lowest valid cost. That is why a nearer robot took the pick."),
         ("1:10", "Head-on in the 1-wide aisle. UBPA. One yields. Both continue."),
         ("1:50", "BLOCK AISLE or click a cell. Replan or RELEASE + re-auction."),
-        ("2:10", "Drag packet-loss to 40%. Radio dies a little. They still recover."),
+        ("2:10", f"Drag packet-loss to 40%: same {D_LOSS40['tasks_done_min']}/"
+                 f"{D_LOSS40['tasks_total']} finish, later "
+                 f"({D_LOSS40['complete_tick_min']}\u2013{D_LOSS40['complete_tick_max']} "
+                 f"vs 72), {int(D_LOSS40['deadlock_count_mean'])} deadlocks."),
         ("2:25", "Flip policy to stop-and-wait. Same map. They stall. That is the usefulness."),
     ]
     for i, (t, body) in enumerate(beats):
@@ -377,7 +425,13 @@ def slide_demo(prs):
         para(tf, body, size=16, color=INK, first=True)
     notes(
         s,
-        "Practice twice with a timer. Have a 20-second backup screen recording if the judging laptop has no Python. Live first. Recording is insurance.",
+        "Practice twice with a timer. Have a 20-second backup screen recording if the judging laptop has no Python. Live first. Recording is insurance. "
+        f"Radio honesty if asked: 40% loss still completes {D_LOSS40['tasks_done_min']}/{D_LOSS40['tasks_total']} in "
+        f"{D_LOSS40['complete_tick_min']}-{D_LOSS40['complete_tick_max']} ticks with 0 deadlocks; "
+        f"3 ticks of delay still never deadlocks but starves E1 to {D_DELAY3['tasks_done_min']}/{D_DELAY3['tasks_total']} "
+        f"with {int(D_DELAY3['collision_count_mean'])} intention conflicts; "
+        f"70% loss lands only {D_LOSS70['tasks_done_min']}-{D_LOSS70['tasks_done_max']}/{D_LOSS70['tasks_total']}. "
+        "All of that is results/degradation.json, measured, not typed.",
     )
 
 
@@ -451,6 +505,11 @@ def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     prs.save(str(OUT))
     print(f"wrote {OUT}")
+    rows, tick_limit = result_rows()
+    print(f"slide 9 numbers read from {METRICS.name} (tick limit {tick_limit}):")
+    for label, base, ours in rows:
+        print(f"  {label:<22} baseline: {base}")
+        print(f"  {'':<22} UBPA:     {ours}")
 
 
 if __name__ == "__main__":

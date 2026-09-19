@@ -1,6 +1,6 @@
 # Evaluation
 
-All numbers in `results/` come from `scripts/run_experiments.py`. The dashboard reads `results/metrics.json` if present; it never invents percentages.
+All numbers in `results/` are measured: `results/metrics.json` comes from `scripts/run_experiments.py`, `results/degradation.json` from `scripts/run_degradation.py`. The dashboard reads `results/metrics.json` if present; it never invents percentages.
 
 Tick limit: 800. Improvement is `(baseline - ours) / baseline` **only when both policies finished**. Stop-and-wait never finished any experiment in this suite (`comparable=false`), so improvement % is `n/a` — not zero, not typed in.
 
@@ -67,6 +67,24 @@ Source: `results/metrics.json`. Means across seeds. `mean_robot_step_ms` omitted
 | distance | 104.0 | 161.0 |
 | mean comm latency (ticks) | 1.998 | 1.979 |
 
+## Degraded radio (`results/degradation.json`)
+
+Source: `scripts/run_degradation.py` — the UBPA policy on the E1 fleet (3 robots, 6 tasks), 5 seeds per scenario, tick limit 800. The dashboard sliders drive the same two parameters, so what a judge drags is what this sweep measures.
+
+| scenario | tasks done | deadlocks | collisions (mean) | first–last finish tick |
+|---|---|---|---|---|
+| clean (0% loss, 1 tick delay) | 6 / 6 | 0 | 2.0 | 72 – 72 |
+| 40% packet loss | 6 / 6 | 0 | 2.4 | 93 – 125 |
+| 70% packet loss | 1 – 5 / 6 | 0 | 3.0 | incomplete |
+| 3 tick radio delay | 3 / 6 | 0 | 577.0 | incomplete |
+| 40% loss + 3 tick delay | 6 / 6 | 0 | 5.6 | 88 – 157 |
+
+What this says honestly:
+
+- Losing 40% of peer packets costs time, not correctness: the same 6/6 tasks finish, 21–53 ticks later, with 0 deadlocks.
+- The failure mode is staleness, not loss. At 3 ticks of delay `PEER_STALE_TICKS = 6` still trusts a stale reservation, so robots repeatedly contest the same cells (577 intention conflicts) and throughput falls to 3/6. Roadmap fix: age-filter peer reservations by their timestamp instead of trusting anything newer than the staleness horizon.
+- 70% loss is where a half-broken radio finally stops a run. Still 0 deadlocks — the fleet fails by slowing, not by freezing.
+
 ## How to read this
 
 Stop-and-wait is supposed to freeze on mutual path occupancy. That is why its distance is low and its wait fraction is ~1: robots barely move after the first conflict. UBPA travels farther because it finishes the jobs.
@@ -77,4 +95,6 @@ Re-run after any planner/collision change:
 
 ```
 python scripts/run_experiments.py
+python scripts/run_degradation.py
+python -m unittest tests.test_mandatory
 ```
